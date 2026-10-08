@@ -41,8 +41,8 @@ build/
 build-host/
 
 # Root-level session originals (public versions live in docs/)
-SPIKE.md
-evidence.md
+/SPIKE.md
+/evidence.md
 vm/
 
 # added pre-publish: binaries and session originals
