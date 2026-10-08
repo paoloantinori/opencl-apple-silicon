@@ -28,6 +28,16 @@ hashcat (OpenCL) -> clvk (OpenCL 3.0 on Vulkan) -> mesa venus (Vulkan serializat
   -> MoltenVK (Vulkan to Metal translation) -> Metal -> Apple GPU
 ```
 
+## Prior art
+
+This project is a chain, not an invention; each layer exists publicly and the credit belongs to its authors:
+
+- [clvk](https://github.com/kpet/clvk) is the OpenCL-on-Vulkan implementation everything here rides. The clvk community attempted hashcat on Linux in 2023 ([PR #598](https://github.com/kpet/clvk/pull/598), merged, fixed the kernel compilation) and tracks the remaining end-to-end blocker in the still-open [issue #600](https://github.com/kpet/clvk/issues/600): clvk does not support passing NULL pointer buffer arguments, which hashcat requires. The NULL-buffer shim documented in this repo is a local, measurement-only workaround for exactly that limitation; the upstream route (physical addressing) hits a further compiler bug, documented in the spike evidence.
+- The [libkrun](https://github.com/containers/libkrun) / venus stack, the homebrew tap that packages it, and the patched-mesa guest image ([quay.io/slopezpa/fedora-vgpu](https://quay.io/slopezpa/fedora-vgpu)) make the Apple GPU reachable from a Linux micro-VM at all. [johnnyasantoss/libkrun-vgpu-containers](https://github.com/johnnyasantoss/libkrun-vgpu-containers) demonstrates that stack for Vulkan workloads (vulkaninfo, llama.cpp) in containers on Apple Silicon; to our knowledge it had not been taken to OpenCL before this repo.
+- OpenCL inside Linux containers is routine on Linux hosts with Intel, AMD, or Nvidia GPUs; nothing in this repo claims otherwise. The scope of the demonstration is the three-way combination: an Apple Silicon host, a Linux container, and the Apple GPU doing the compute.
+
+What is new here is the composition and the two compiler fixes it took: the full chain (libkrun/venus stack, patched-mesa image, clvk with the clspv fixes of [google/clspv#1660](https://github.com/google/clspv/pull/1660) and [google/clspv#1662](https://github.com/google/clspv/pull/1662), the CLVK_DEVICE_NAME override, the NULL-buffer shim) running hashcat end to end on real hashes, benchmarked against native Metal.
+
 ## What was broken and how it was fixed
 
 Three bugs in clspv, all found by feeding it a hashcat kernel, all with reproducer and patch:
