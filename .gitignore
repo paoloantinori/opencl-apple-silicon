@@ -1,0 +1,51 @@
+# Session infrastructure (not part of the public seed)
+backlog/
+claudedocs/
+docs/session/
+ev.sh
+github-watch.sh
+github-watch.state
+github-interactions.log
+todo.md
+
+# Heavy working artifacts (regenerable)
+gpu-stack/dl/
+gpu-stack/krunkit/
+gpu-stack/libkrun/
+gpu-stack/libkrunfw/
+gpu-stack/libepoxy/
+gpu-stack/molten-vk/
+gpu-stack/virglrenderer-krun/
+gpu-stack/share/
+gpu-stack/lib/
+gpu-stack/bin/
+gpu-stack/krunkit.entitlements.plist
+gpu-stack/evidence.md
+clvk/
+hashcat-src/
+*.pkg
+*.msi
+*.zip
+*.raw
+*.spv
+*.bc
+*.ll
+*.asm
+*.log.gz
+
+# Session-specific patches (the clean ones live in tools/patches/)
+clspv-fix-*.patch
+
+# Build artifacts
+build/
+build-host/
+
+# Root-level session originals (public versions live in docs/)
+SPIKE.md
+evidence.md
+vm/
+
+# added pre-publish: binaries and session originals
+*.tar.gz
+shasums
+gpu-stack/fixup.sh
