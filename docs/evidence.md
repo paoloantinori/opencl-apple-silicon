@@ -1328,3 +1328,15 @@ Script: github-watch.sh (watermark su github-watch.state, delta log in github-in
 
 ## CLA su #1663: anomalia non risolta
 Tutti i commit hanno <maintainer-email> (verificato via API), stesso utente/email delle PR 1660-1662 dove il check passa. Fallisce anche dopo 3 push di riattivazione e amend email. Possibile cache del servizio CLA: da riesaminare o segnalare a google-cla-support se persiste.
+
+## SESSIONE 11 (2026-10-09): review round 2 clvk#907/#908 + CLA #1663 risolta
+
+Recheck dopo reboot del Mac (stato del watcher stantio, rieseguito a mano). I commenti inline di rjodinchr delle 06:18-07:09 UTC su entrambe le PR clvk erano visibili solo via pulls/comments API: endpoint NON coperto dal cron watcher.
+
+clvk#907: quoting dei path una volta sola per file in 3545fdf (alias quoted nel ramo SPIR-V, append unificato nel ramo source). Perche' serva quoting: i path ereditano compiler_temp_dir() (default std::filesystem::temp_directory_path()), un TMPDIR con spazi spezzava la command line pre-PR. Il percorso online non e' toccato (tutti i call site sono nel ramo offline) e comunque clspv online spezza gli apici via TokenizeGNUCommandLine (isQuote tratta ' e " allo stesso modo). Test funzionale richiesto dalla review in 922e88e: WithCommandQueueAndPrintf compila con -D XM2S(x)=#x e asserisce che il printf del kernel emetta "hello". Commento popen gia rimosso in bbb8a07. Risposte pubblicate su tutti i thread + conversazione (issuecomment-6079383319). CI su 922e88e: 9/9 pass.
+
+clvk#908: due suggerimenti erano gia in f5d1b83; applicati i due aperti in b9a10ce (.c_str() nella chiamata di log, guard invertita su config.device_name.set in name()). Risposte sui 4 thread. CI su b9a10ce: 9/9 pass.
+
+clspv#1663 CLA: causa trovata nell'output del check (email mascherate diverse): il commit 2e61a7d3 era autore con una variante senza punto dell'indirizzo gmail, non coperta dalla CLA firmata; 1660/1662 passavano perche' i loro commit usano solo indirizzi coperti (redhat e gmail col punto). Riautorato il singolo commit con filter-branch, albero verificato identico al remote (git diff vuoto), force-push con lease esplicito su 6849d8b6. cla/google: success su b16a2ed3. L'anomalia della sezione precedente e' chiusa.
+
+Stato a fine sessione: #1660 attende re-review dopo c60f6a48 (badge CHANGES_REQUESTED del 2026-10-08); #1662 e #1663 attendono la prima review; nulla di nuovo su libkrun#910, hashcat#4959, podman#29918. TASK-3 aperto in backlog.
