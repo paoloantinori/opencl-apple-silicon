@@ -2,7 +2,9 @@
 
 ## The upstream patches
 
-This project currently depends on two unmerged clspv PRs. Until they land, the patches in `tools/patches/` must be applied to build a working clvk. Once both merge, the patches become unnecessary.
+This project currently depends on two unmerged clspv PRs. Until they land, the patches in `tools/patches/clspv/` must be applied to build a working clvk. Once both merge, the patches become unnecessary.
+
+Status as of 2026-10-10: both clspv PRs are open with checks and CLA green (#1660 awaiting re-review, #1662 awaiting first review). On the clvk side, #908 (device name override) merged upstream on 2026-10-09 and is part of the pinned build revision, while #907 (shell quoting) is carried as `tools/patches/clvk/0001-shell-quote-build-options.patch` until it merges.
 
 ### google/clspv#1660: GEP offset truncation guard
 

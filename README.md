@@ -52,7 +52,22 @@ Two smaller fixes went to clvk:
 
 - **Shell quoting of compiler options** ([kpet/clvk#907](https://github.com/kpet/clvk/pull/907)). The clspv command line runs through `popen(3)`, so OpenCL build options with parentheses or dollar signs (hashcat passes `-D XM2S(x)=#x`) break the shell. The fix shell-quotes every token.
 
-- **Device name override** ([kpet/clvk#908](https://github.com/kpet/clvk/pull/908)). hashcat uses monolithic program builds for devices named "Apple M*", but a venus guest device reports `Virtio-GPU Venus (Apple M3 Pro)` which does not match. An opt-in `CLVK_DEVICE_NAME` config lets the reported name start with "Apple M" while the device-properties dispatch keeps the real hardware name.
+- **Device name override** ([kpet/clvk#908](https://github.com/kpet/clvk/pull/908), merged upstream 2026-10-09). hashcat uses monolithic program builds for devices named "Apple M*", but a venus guest device reports `Virtio-GPU Venus (Apple M3 Pro)` which does not match. An opt-in `CLVK_DEVICE_NAME` config lets the reported name start with "Apple M" while the device-properties dispatch keeps the real hardware name.
+
+## Upstream status
+
+As of 2026-10-10:
+
+| Pull request | What it fixes | Status |
+|---|---|---|
+| [kpet/clvk#908](https://github.com/kpet/clvk/pull/908) | Device name override | **Merged** 2026-10-09 |
+| [kpet/clvk#907](https://github.com/kpet/clvk/pull/907) | Shell quoting of compiler options | Open; CI green, all review threads answered |
+| [google/clspv#1660](https://github.com/google/clspv/pull/1660) | GEP offset truncation | Open; review feedback addressed, awaiting re-review |
+| [google/clspv#1662](https://github.com/google/clspv/pull/1662) | Switch table rehome | Open; checks and CLA green, awaiting first review |
+| [google/clspv#1663](https://github.com/google/clspv/pull/1663) | Logical-to-physical pointer bitcast | Open; checks and CLA green, awaiting first review |
+| [google/clspv#1661](https://github.com/google/clspv/pull/1661) | Earlier array-type dedup attempt | Superseded by #1662; will be closed when it merges |
+
+The build pins clvk at `8bd3672`, which already contains #908. The still-open #907 and the measurement-only NULL-buffer shim are carried as local patches in `tools/patches/clvk/` and applied by `tools/build-clvk.sh`.
 
 ## How to reproduce
 
@@ -77,7 +92,7 @@ Downloads the libkrun tap bottles (krunkit 1.3.2, libkrun 1.19.6, virglrenderer 
 tools/build-clvk.sh
 ```
 
-Clones kpet/clvk, applies the two clspv patches from `tools/patches/`, and builds. Takes about 45 minutes (LLVM is the long pole). The output is `libOpenCL.so` plus the patched `clspv` binary.
+Clones kpet/clvk, applies the clspv patches from `tools/patches/clspv/` and the clvk patches from `tools/patches/clvk/` (the open #907 and the local measurement shim), and builds. Takes about 45 minutes (LLVM is the long pole). The output is `libOpenCL.so` plus the patched `clspv` binary.
 
 Once upstream PRs #1660 and #1662 merge, the patches become unnecessary and a plain clvk build suffices.
 
@@ -93,7 +108,7 @@ Creates a podman machine with the libkrun provider, starts it with the GPU stack
 
 - **One VM per host**: podman on macOS allows only one running machine at a time. The script creates a separate machine and uses a sandbox config dir (`XDG_CONFIG_HOME`) so it can coexist with a running default machine.
 - **Stock mesa does not work**: the guest needs the patched mesa from the COPR (`slp/mesa-krunkit`) or the prebuilt image above. Stock mesa fails the venus handshake with `vkCreateInstance ERROR_OUT_OF_HOST_MEMORY`.
-- **The measurement shim**: hashcat passes NULL for unused buffer arguments, which clvk rejects without physical addressing. The physical addressing path works once patch 3 is applied, but until it merges, a small local patch to clvk's `clSetKernelArg` (bind a 16-byte dummy buffer for NULL) is needed for the benchmark. This is documented in `docs/spike.md` (session 8) and is not part of the upstream patches.
+- **The measurement shim**: hashcat passes NULL for unused buffer arguments, which clvk rejects without physical addressing. The physical addressing path works once patch 3 is applied, but until it merges, a local patch to clvk's `clSetKernelArg` (bind a 16-byte dummy buffer for NULL) is needed for the benchmark. It ships as `tools/patches/clvk/0002-null-buffer-arg-shim.patch`, is documented in `docs/spike.md` (session 8), and is not meant for upstream.
 - **virtiofs mounts are broken in the guest**: all four podman machine host-share mounts return `Connection refused`. Work around it by keeping container workloads guest-local and shadowing `/etc/containers` with a tmpfs from `/usr/share/containers`. Reported upstream as [libkrun/libkrun#910](https://github.com/libkrun/libkrun/issues/910).
 
 ## Repository layout
@@ -104,8 +119,12 @@ tools/
   build-clvk.sh          build clvk with the clspv patches applied
   run-benchmark.sh       bring up the VM and run the hashcat benchmark
   patches/
-    0001-gep-merge-offset-guard.patch
-    0002-switch-table-rehome.patch
+    clspv/
+      0001-gep-merge-offset-guard.patch
+      0002-switch-table-rehome.patch
+    clvk/
+      0001-shell-quote-build-options.patch
+      0002-null-buffer-arg-shim.patch
 docs/
   spike.md               full spike report (method, findings, sessions)
   evidence.md            verbatim command log for every claim above

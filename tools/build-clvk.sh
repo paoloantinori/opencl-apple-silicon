@@ -1,9 +1,11 @@
 #!/bin/bash
-# build-clvk.sh: build clvk from source with the two clspv patches applied
+# build-clvk.sh: build clvk from source with the local patch set applied
 #
-# Clones kpet/clvk at the tested revision, applies the clspv patches from
-# tools/patches/ (the two upstream PRs), and builds the OpenCL library.
-# The build takes about 45 minutes on 6 vCPUs (LLVM is the long pole).
+# Clones kpet/clvk at the tested revision (which already contains the merged
+# kpet/clvk#908), applies the clspv patches in tools/patches/clspv/ (the two
+# open upstream PRs) and the clvk patches in tools/patches/clvk/ (the open
+# #907 plus the measurement-only NULL-arg shim), and builds the OpenCL
+# library. The build takes about 45 minutes on 6 vCPUs (LLVM is the pole).
 #
 # Prerequisites: cmake, ninja, python3, a C++ compiler, Vulkan headers.
 #
@@ -13,7 +15,7 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PATCHES="$SCRIPT_DIR/patches"
 WORKDIR="${TMPDIR:-/tmp}/clvk-build"
 JOBS=2
@@ -26,7 +28,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-CLVK_REF="36a882756a08891fbf767a909063a0a3afe8355b"
+CLVK_REF="8bd3672174764dce25ba220773e10baa752f0373"
 
 echo "==> Cloning clvk at $CLVK_REF ..."
 rm -rf "$WORKDIR"
@@ -38,9 +40,17 @@ cd external/clspv
 ./utils/fetch_sources.py --deps llvm SPIRV-Headers SPIRV-Tools
 
 echo "==> Applying clspv patches..."
-for p in "$PATCHES"/*.patch; do
+for p in "$PATCHES"/clspv/*.patch; do
     echo "    $(basename "$p")"
-    patch -p1 --fuzz=3 < "$p"
+    patch -d "$WORKDIR/external/clspv" -p1 --fuzz=3 < "$p"
+done
+
+echo "==> Applying clvk patches..."
+# 0001 is kpet/clvk#907 (still open upstream at the time of writing);
+# 0002 is the local measurement-only shim, never meant for upstream.
+for p in "$PATCHES"/clvk/*.patch; do
+    echo "    $(basename "$p")"
+    patch -d "$WORKDIR" -p1 --fuzz=3 < "$p"
 done
 
 echo "==> Building (this takes about 45 minutes) ..."

@@ -1,0 +1,271 @@
+diff --git a/src/program.cpp b/src/program.cpp
+index eab6bae..9b69dd0 100644
+--- a/src/program.cpp
++++ b/src/program.cpp
+@@ -977,6 +977,34 @@ size_t cvk_program::binary_size() const {
+     return 0;
+ }
+ 
++static std::string quote_options_for_shell(const std::string& options) {
++    std::vector<std::string> tokens;
++    std::string token;
++    bool in_quotes = false;
++    for (char c : options) {
++        if (c == '"') {
++            in_quotes = !in_quotes;
++        } else if (c == ' ' && !in_quotes) {
++            if (!token.empty()) {
++                tokens.push_back(token);
++            }
++            token.clear();
++        } else {
++            token += c;
++        }
++    }
++    if (!token.empty()) {
++        tokens.push_back(token);
++    }
++
++    std::string quoted;
++    for (const auto& t : tokens) {
++        quoted += shell_quote_token(t);
++        quoted += " ";
++    }
++    return quoted;
++}
++
+ std::string cvk_program::prepare_build_options(const cvk_device* device) const {
+     // Strip off a few options we can't handle
+     std::string options;
+@@ -1097,29 +1125,7 @@ std::string cvk_program::prepare_build_options(const cvk_device* device) const {
+         options += "-cl-arm-non-uniform-work-group-size";
+     }
+ 
+-    // split options into a vector
+-    std::istringstream iss(options);
+-    std::vector<std::string> vector_options;
+-    std::string token;
+-    while (std::getline(iss, token, ' ')) {
+-        vector_options.push_back(token);
+-    }
+-
+-    // loop through the options and quote the ones that need it
+-    std::string quoted_options;
+-    for (size_t i = 0; i < vector_options.size(); i++) {
+-        if (vector_options[i].empty()) {
+-            continue;
+-        }
+-        if (vector_options[i].find("-") == 0) {
+-            quoted_options += vector_options[i];
+-        } else {
+-            quoted_options += "\"" + vector_options[i] + "\"";
+-        }
+-        quoted_options += " ";
+-    }
+-
+-    return quoted_options;
++    return quote_options_for_shell(options);
+ }
+ 
+ cl_int cvk_program::parse_user_spec_constants() {
+@@ -1148,7 +1154,7 @@ cl_int cvk_program::parse_user_spec_constants() {
+ 
+     std::string cmd_spv{config.llvmspirv_bin()};
+     cmd_spv += " --spec-const-info ";
+-    cmd_spv += llvmspirv_input_file;
++    cmd_spv += shell_quote_token(llvmspirv_input_file);
+ 
+     std::string output = "";
+     cvk_exec(cmd_spv, &output);
+@@ -1291,9 +1297,9 @@ cl_build_status cvk_program::do_build_inner_offline(bool build_to_ir,
+ 
+         cmd_spv += " -r ";
+         cmd_spv += " -o ";
+-        cmd_spv += clspv_input_file;
++        cmd_spv += shell_quote_token(clspv_input_file);
+         cmd_spv += " ";
+-        cmd_spv += llvmspirv_input_file;
++        cmd_spv += shell_quote_token(llvmspirv_input_file);
+ 
+         // Call the translator
+         int status = cvk_exec(cmd_spv);
+@@ -1303,7 +1309,7 @@ cl_build_status cvk_program::do_build_inner_offline(bool build_to_ir,
+             return CL_BUILD_ERROR;
+         }
+ 
+-        cmd += clspv_input_file;
++        cmd += shell_quote_token(clspv_input_file);
+         cmd += " ";
+ #endif // ENABLE_SPIRV_IL
+     } else if (m_operation == build_operation::link) {
+@@ -1321,7 +1327,7 @@ cl_build_status cvk_program::do_build_inner_offline(bool build_to_ir,
+                 cvk_error_fn("Couldn't save source to file!");
+                 return CL_BUILD_ERROR;
+             }
+-            cmd += input_file;
++            cmd += shell_quote_token(input_file);
+             cmd += " ";
+         }
+     } else {
+@@ -1331,7 +1337,7 @@ cl_build_status cvk_program::do_build_inner_offline(bool build_to_ir,
+                 cvk_error_fn("Couldn't save source to file!");
+                 return CL_BUILD_ERROR;
+             }
+-            cmd += clspv_input_file;
++            cmd += shell_quote_token(clspv_input_file);
+             cmd += " ";
+         } else {
+             clspv_input_file += ".cl";
+@@ -1339,7 +1345,7 @@ cl_build_status cvk_program::do_build_inner_offline(bool build_to_ir,
+                 cvk_error_fn("Couldn't save source to file!");
+                 return CL_BUILD_ERROR;
+             }
+-            cmd += clspv_input_file;
++            cmd += shell_quote_token(clspv_input_file);
+             cmd += " ";
+         }
+     }
+@@ -1353,7 +1359,7 @@ cl_build_status cvk_program::do_build_inner_offline(bool build_to_ir,
+ 
+     cmd += build_options;
+     cmd += " -o ";
+-    cmd += clspv_output_file;
++    cmd += shell_quote_token(clspv_output_file);
+ 
+     // Call clspv
+     int status = cvk_exec(cmd, &m_build_log);
+@@ -1568,7 +1574,7 @@ cl_build_status cvk_program::do_build_inner(const cvk_device* device) {
+ #else
+     // Save headers
+     if (m_operation == build_operation::compile) {
+-        build_options += "-I" + tmp_folder;
++        build_options += "-I" + shell_quote_token(tmp_folder);
+         for (cl_uint i = 0; i < m_num_input_programs; i++) {
+             auto fname = append_paths(tmp_folder, m_header_include_names[i]);
+             if (!save_string_to_file(fname, m_input_programs[i]->source())) {
+diff --git a/src/utils.cpp b/src/utils.cpp
+index e4787e2..99807c0 100644
+--- a/src/utils.cpp
++++ b/src/utils.cpp
+@@ -30,6 +30,30 @@
+ #include <pthread.h>
+ #endif
+ 
++std::string shell_quote_token(const std::string& token) {
++#ifdef WIN32
++    // cmd.exe treats single quotes as regular characters, so keep the
++    // historical double quoting behaviour there.
++    if (token.find("-") == 0) {
++        return token;
++    }
++    return "\"" + token + "\"";
++#else
++    // The command line is executed through popen(3), so shell-quote the
++    // token to hand it to the child process verbatim.
++    std::string quoted = "'";
++    for (char c : token) {
++        if (c == '\'') {
++            quoted += "'\\''";
++        } else {
++            quoted += c;
++        }
++    }
++    quoted += "'";
++    return quoted;
++#endif
++}
++
+ char* cvk_mkdtemp(std::string& tmpl) {
+ #ifdef WIN32
+     if (_mktemp_s(&tmpl.front(), tmpl.size() + 1) != 0) {
+diff --git a/src/utils.hpp b/src/utils.hpp
+index 8fed47d..e256db9 100644
+--- a/src/utils.hpp
++++ b/src/utils.hpp
+@@ -18,6 +18,7 @@
+ 
+ #include <cassert>
+ #include <filesystem>
++#include <string>
+ #include <thread>
+ #include <vector>
+ 
+@@ -31,6 +32,7 @@
+ 
+ char* cvk_mkdtemp(std::string& tmpl);
+ int cvk_exec(const std::string& cmd, std::string* output = nullptr);
++std::string shell_quote_token(const std::string& token);
+ void cvk_set_current_thread_name_if_supported(const std::string&);
+ 
+ #define CVK_VK_CHECK_INTERNAL(logfn, res, msg)                                 \
+diff --git a/tests/api/CMakeLists.txt b/tests/api/CMakeLists.txt
+index 64c3469..82258b1 100644
+--- a/tests/api/CMakeLists.txt
++++ b/tests/api/CMakeLists.txt
+@@ -22,6 +22,7 @@ add_gtest_executable(api_tests
+     platform.cpp
+     printf.cpp
+     profiling.cpp
++    shell_quote.cpp
+     simple.cpp
+     simple_image.cpp
+     simple_ubo.cpp
+diff --git a/tests/api/shell_quote.cpp b/tests/api/shell_quote.cpp
+new file mode 100644
+index 0000000..2e32153
+--- /dev/null
++++ b/tests/api/shell_quote.cpp
+@@ -0,0 +1,53 @@
++// Copyright 2026 The clvk authors.
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//     http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++// Tests that build options containing shell metacharacters are passed to
++// the compiler verbatim: clBuildProgram must succeed with -D macros whose
++// values include parentheses, dollar signs, quotes, and single quotes.
++
++#include "testcl.hpp"
++
++#include <gtest/gtest.h>
++
++namespace {
++
++const char* source = R"(
++kernel void test_macro(__global uint* out, uint x) {
++    out[0] = x;
++}
++)";
++
++} // namespace
++
++TEST_F(WithContext, BuildOptionsWithMetacharacters) {
++    // Every option here contains characters that would break a naive
++    // popen() command line. The first is the hashcat pattern that
++    // motivated the fix: a single token with parentheses and a hash.
++    const char* options[] = {
++        "-DXM2S(x)=#x",      "-D MACRO(x)=#x",
++        "-D VALUE=$HOME",    "-D NAME=\"hello world\"",
++        "-D SEMI=a;b",       "-D PIPE=a|b",
++        "-D PAREN=()",       "-D GLOB=*",
++        "-D SINGLE='quote'",
++    };
++    for (const char* opts : options) {
++        cl_int err;
++        auto program =
++            clCreateProgramWithSource(m_context, 1, &source, nullptr, &err);
++        ASSERT_CL_SUCCESS(err);
++        err = clBuildProgram(program, 1, &gDevice, opts, nullptr, nullptr);
++        EXPECT_CL_SUCCESS(err);
++        clReleaseProgram(program);
++    }
++}

@@ -1,0 +1,66 @@
+diff --git a/src/api.cpp b/src/api.cpp
+index 39b99b5..ba05b25 100644
+--- a/src/api.cpp
++++ b/src/api.cpp
+@@ -2981,25 +2981,46 @@ cl_int CLVK_API_CALL clSetKernelArg(cl_kernel kern, cl_uint arg_index,
+     // With opaque pointers, clspv is unable to infer the type of an unused
+     // kernel argument so allow nullptr for its value. It will not have an
+     // affect on the kernel's operation.
++    static cl_mem m_null_arg_buffer = nullptr;
++    static constexpr size_t kNullArgBufferSize = 16;
+     auto arg_kind = kernel->arg_kind(arg_index);
+-    if ((arg_value == nullptr) &&
+-        !((arg_kind == kernel_argument_kind::local) ||
+-          (arg_kind == kernel_argument_kind::unused))) {
+-        cvk_error_fn("passing a null pointer to clSetKernelArg is only "
+-                     "supported for local arguments");
+-        if (arg_kind == kernel_argument_kind::sampler) {
+-            return CL_INVALID_SAMPLER;
+-        } else {
+-            return CL_INVALID_ARG_VALUE;
++    // LOCAL MEASUREMENT SHIM (not for upstream): the OpenCL spec allows a
++    // NULL memory object for buffer arguments; hashcat passes both a null
++    // arg_value and a pointer to a NULL cl_mem for unused buffers. Bind one
++    // cached 16-byte dummy buffer per kernel so the benchmark runs without
++    // physical addressing. Caveats by design: hides what the spec reports as
++    // CL_INVALID_MEM_OBJECT/ARG_VALUE, and a kernel writing past 16 bytes
++    // through such an arg overruns the dummy.
++    if (arg_kind == kernel_argument_kind::buffer ||
++        arg_kind == kernel_argument_kind::buffer_ubo) {
++        const bool null_value =
++            arg_value == nullptr ||
++            (arg_size == sizeof(cl_mem) &&
++             *reinterpret_cast<const cl_mem*>(arg_value) == nullptr);
++        if (null_value) {
++            if (m_null_arg_buffer == nullptr) {
++                cl_int err;
++                m_null_arg_buffer = cvk_create_buffer_with_properties(
++                    kernel->context(), nullptr, CL_MEM_READ_WRITE,
++                    kNullArgBufferSize, nullptr, &err);
++                if (err != CL_SUCCESS || m_null_arg_buffer == nullptr) {
++                    m_null_arg_buffer = nullptr;
++                    return CL_OUT_OF_RESOURCES;
++                }
++            }
++            cl_mem dummy = m_null_arg_buffer;
++            return kernel->set_arg(arg_index, sizeof(cl_mem), &dummy);
+         }
+     }
+-
+-    if (arg_size == 0 &&
+-        (kernel->arg_kind(arg_index) == kernel_argument_kind::local)) {
+-        return CL_INVALID_ARG_SIZE;
++    // NULL arg_value for pointer args maps to a NULL cl_mem, which the
++    // pod-pointer path handles by binding device address 0.
++    if (arg_value == nullptr &&
++        (arg_kind == kernel_argument_kind::pointer_ubo ||
++         arg_kind == kernel_argument_kind::pointer_pushconstant)) {
++        cl_mem null_mem = NULL;
++        return kernel->set_arg(arg_index, sizeof(cl_mem), &null_mem);
+     }
+-
+-    return kernel->set_arg(arg_index, arg_size, arg_value);
++    return kernel->set_arg(arg_index, arg_size, arg_value);    return kernel->set_arg(arg_index, arg_size, arg_value);
+ }
+ 
+ cl_int CLVK_API_CALL clSetKernelExecInfo(cl_kernel kernel,
