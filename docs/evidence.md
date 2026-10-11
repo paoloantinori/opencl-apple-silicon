@@ -1360,3 +1360,15 @@ Dispatch cc-config (direttiva maintainer: fix ricorrente "agenti non rispondono 
 Aggiunta la tabella "Upstream status" al README (908 MERGED 2026-10-09, 907/1660/1662/1663 aperte, 1661 superseded) e lo stato in CONTRIBUTING. Verifiche fatte mentre la si scriveva: git show origin/main di clvk conferma 8bd3672 = merge commit di #908.
 
 Difetti di riproducibilita' trovati e corretti (commit 215dbdb): (1) build-clvk.sh riga 16 e run-benchmark.sh riga 17 avevano la SCRIPT_DIR rotta in modo complementare (`pwd)` senza virgoletta finale / `pwd"` senza parentesi): entrambi gli script NON PARSAVANO dal giorno della pubblicazione, mai eseguiti da nessuno; bash -n ora passa su tutti e cinque gli script del repo. (2) Il build pinnavan un ref antecedente la merge di #908 e non applicava alcuna patch clvk: il 95% documentato non era riproducibile dal repo. Ora pinna 8bd3672 (contiene #908) e applica tools/patches/clvk/0001 (PR #907) + 0002 (shim). (3) .gitignore `clvk/` inglobava tools/patches/clvk/: ancorato a `/clvk/`. Prova: patch --dry-run di tutte e 4 le patch su cloni puliti ai ref puntati (clvk 8bd3672, clspv 7ee3a40e): APPLIES su tutte. Gate-exempt: docs e build-config, nessun codice runtime.
+
+## SESSIONE 14 (2026-10-11): review round su clspv#1661/#1662, Stop hook al primo fuoco reale
+
+Due review CHANGES_REQUESTED di rjodinchr. #1661: la spiegazione del perche' condividere gli id OpTypeArray tra varianti di layout e' sbagliato (VUID-StandaloneSpirv-None-10684, ArrayStride vietato nelle storage class non laid-out; ChangeLayout richiede tipi distinti); richiesta di spostare il test in #1662 e chiudere. #1662: (a) RAUW tra address space diversi fallisce l'assert di Value::doRAUW nelle build con assertion; (b) helper nominato al posto del commento lungo, integrazione nel loop globals esistente riusando DeadGVList; (c) test ridotto al primo switch.
+
+Fix in 1772dc7d: loop per-user replaceUsesOfWith ripristinato verbatim (con guard isa<Constant>), helper static IsCompilerGeneratedConstVar + RehomeGVList nel loop esistente, test ridotto, test di #1661 spostato come array_constant_layout_type_identity.cl con check OpVariable su Private. #1661 chiuso con commento di chiusura.
+
+Verifica nel container (build incrementale ~1 min): prima corsa lit fallita per tool mancanti dal PATH di lit (FileCheck, clspv-reflection) e parametro CLSPV_TARGET assente (la sostituzione %target corrotta produceva 'file.tmparget'): falsecci 203-207. Con PATH completo e --param CLSPV_TARGET: i due test PASS e sweep constant/private/switch/PushConstant/ProgramScopeConstants/UBO 207/207 su spirv64 e spirv32. Comparazione col commit genitore superflua dopo la causa-tool identificata (il set dei fallimenti era identico pre/post modifica).
+
+Stop hook gh-thread-audit al primo fuoco reale: ha bloccato il turno con i 3 thread di #1662 non risposti; waiver registrato per lavoro in corso e rimosso dopo le reply. Funziona come progettato.
+
+Nota pendente: il branch di #1660 contiene il vecchio commit rehome di #1662; dopo la merge di #1662 servira' rebase di #1660 (attesa: esito della re-review).
