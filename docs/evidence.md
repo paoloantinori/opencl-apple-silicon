@@ -1376,3 +1376,5 @@ Nota pendente: il branch di #1660 contiene il vecchio commit rehome di #1662; do
 ## SESSIONE 15 (2026-10-12): #1662, test di identita' rimosso (non discriminava)
 
 Review di rjodinchr (5490359203): il test di identita' spostato da #1661 passa anche SENZA il fix. Verificato empiricamente: il binario del container era ancora quello del commit genitore 22e5a8ad e il test e' passato comunque (le costanti utente semplici prendevano gia' il percorso ModuleScopePrivate pre-esistente). Test rimosso in abb1bb2c, reply sul thread con la prova. Il discriminatore resta switch_table_global_constant.cl. #1662 ora: 1 solo file di codice modificato + 1 test.
+
+Post scriptum sessione 15 (2026-10-12 sera): rjodinchr ha postato due suggestion generate da un'AI per le funzioni di quoting (lambda flush_token a passata singola; quoting con reserve e append a blocchi + guardia front() su WIN32). Valutate equivalenti e applicate in 9469eb0 (con <string_view> aggiunto in utils.cpp per il riferimento a npos). CI su 9469eb0: 9/9 pass. #907 di nuovo in attesa della merge con LGTM in mano.
