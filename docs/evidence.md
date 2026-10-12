@@ -1372,3 +1372,7 @@ Verifica nel container (build incrementale ~1 min): prima corsa lit fallita per 
 Stop hook gh-thread-audit al primo fuoco reale: ha bloccato il turno con i 3 thread di #1662 non risposti; waiver registrato per lavoro in corso e rimosso dopo le reply. Funziona come progettato.
 
 Nota pendente: il branch di #1660 contiene il vecchio commit rehome di #1662; dopo la merge di #1662 servira' rebase di #1660 (attesa: esito della re-review).
+
+## SESSIONE 15 (2026-10-12): #1662, test di identita' rimosso (non discriminava)
+
+Review di rjodinchr (5490359203): il test di identita' spostato da #1661 passa anche SENZA il fix. Verificato empiricamente: il binario del container era ancora quello del commit genitore 22e5a8ad e il test e' passato comunque (le costanti utente semplici prendevano gia' il percorso ModuleScopePrivate pre-esistente). Test rimosso in abb1bb2c, reply sul thread con la prova. Il discriminatore resta switch_table_global_constant.cl. #1662 ora: 1 solo file di codice modificato + 1 test.
