@@ -1378,3 +1378,15 @@ Nota pendente: il branch di #1660 contiene il vecchio commit rehome di #1662; do
 Review di rjodinchr (5490359203): il test di identita' spostato da #1661 passa anche SENZA il fix. Verificato empiricamente: il binario del container era ancora quello del commit genitore 22e5a8ad e il test e' passato comunque (le costanti utente semplici prendevano gia' il percorso ModuleScopePrivate pre-esistente). Test rimosso in abb1bb2c, reply sul thread con la prova. Il discriminatore resta switch_table_global_constant.cl. #1662 ora: 1 solo file di codice modificato + 1 test.
 
 Post scriptum sessione 15 (2026-10-12 sera): rjodinchr ha postato due suggestion generate da un'AI per le funzioni di quoting (lambda flush_token a passata singola; quoting con reserve e append a blocchi + guardia front() su WIN32). Valutate equivalenti e applicate in 9469eb0 (con <string_view> aggiunto in utils.cpp per il riferimento a npos). CI su 9469eb0: 9/9 pass. #907 di nuovo in attesa della merge con LGTM in mano.
+
+## SESSIONE 16 (2026-10-13): commento mancato su #1660, root cause del watcher, #1666 GCD, libkrun#910
+
+Il maintainer segnala un commento senza risposta su #1660 (6141721882): rjodinchr, dopo un'osservazione tecnica del 2026-10-10 che non avevo MAI visto (6099562245), ha aperto lui stesso google/clspv#1666 (min->gcd su smallerBitWidths in runOnGEPFromGEP) e mi ha pingato due volte.
+
+ROOT CAUSE del buco di visibilita': l'endpoint REST issue-comments IGNORA direction=desc nella combinazione per_page&sort&direction e restituisce ordine ASCENDENTE, quindi il watcher watermarkmava il PRIMO commento di ogni thread (verificato: su #1660 ritorna 6039254154, il bot, invece di 6141721882). Fix commit 7163dd3: pagina non ordinata e .[-1]. Riprotato all'agente cc-config su bird (dispatch via bird-tunnel): audit CLEAN (i loro hook usano any-reply sul feed paginato; statusline su GraphQL server-side), confine reviewThreads(first:50).
+
+Risposta pubblicata su #1660 (6145120117): scuse con causa onesta, valutazione del GCD (gcd(w1,w2) divide ogni combinazione intera a*w1+b*w2 quindi la divisione e' esatta e il fold resta; la mia guardia saltava una semplificazione rappresentabile), verifica e2e in arrivo su #1666.
+
+libkrun#910: slp chiede dettagli di riproduzione. Risposto (6145195882): kernel guest 7.1.10-200.fc44.aarch64, podman 6.1.3 brew su macOS 26/M3 Pro, nessun libkrun di sistema (repro sia con stack pkg sia con bottles del tap ricollocate), sintomo ECONNREFUSED al primo uso delle 4 share + storage.conf; dato nuovo: sulla macchina crack attuale (creata 2026-10-07) le share FUNZIONANO, quindi il difetto non appare deterministico.
+
+Macchine: crack si era fermata; kind-reg13 (agente apicurio) occupava lo slot libkrun, coordinato via prompt e liberato (avvisera' prima di riprenderla). Sandbox config di crack ricreata in ~/.cache/crack-xdg (la /tmp era stata pulita); gpu-stack funzionante e' alla RADICE del repo (gpu-stack/bin, krunkit 1.3.2), non in tools/gpu-stack come dice il README (da correggere). Build della #1666 avviata nel container (fetch via refs/pull/1666/head).
