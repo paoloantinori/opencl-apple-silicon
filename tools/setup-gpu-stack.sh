@@ -19,8 +19,7 @@ PREFIX="${2:-$SCRIPT_DIR/gpu-stack}"
 echo "==> Downloading libkrun tap bottles..."
 mkdir -p "$PREFIX"
 cd "$PREFIX"
-for spec in "krunkit-1.3.2" "libkrun-1.19.6" "libkrunfw-5.6.2" "virglrenderer-krun-0.10.4e"; do
-    tag="${spec%-*}"
+for tag in "krunkit-1.3.2" "libkrun-1.19.6" "libkrunfw-5.6.2" "virglrenderer-krun-0.10.4e"; do
     gh release download "$tag" --repo libkrun/homebrew-krun \
         --pattern "*arm64_tahoe*" --clobber 2>/dev/null \
         || echo "    (bottle for $tag may already be present)"
