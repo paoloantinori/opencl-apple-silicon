@@ -27,8 +27,8 @@ log_new() { # repo, kind, number, author, ts, body-snippet
 watch_issue_comments() {
     local repo="$1" num="$2" kind="comment"
     local latest
-    latest=$(gh api "repos/$repo/issues/$num/comments?per_page=100&sort=created&direction=desc" \
-        --jq '.[0] | "\(.id) \(.created_at) \(.user.login) \(.body[0:120])"' 2>/dev/null) || return 0
+    latest=$(gh api "repos/$repo/issues/$num/comments?per_page=100" \
+        --jq '.[-1] | "\(.id) \(.created_at) \(.user.login) \(.body[0:120])"' 2>/dev/null) || return 0
     [ -z "$latest" ] && return 0
     local id ts author body
     read -r id ts author body <<< "$latest"
