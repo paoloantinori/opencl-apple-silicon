@@ -1406,3 +1406,13 @@ RISULTATO: hashcat -b -m 22000 -D 2 su gcdgpu: Device #01 GPU Apple M3 Pro 18432
 Il maintainer segnala il commento del 12/10 (6127796367) con patch per constant_data_seq_string.ll: la nostra PR rompeva il CI kokoro su quel test, e rjodinchr ha ripingato ieri ("your comment watcher is stuck"). La causa: il commento era nel timeframe di recupero post-fix watcher e me lo sono perso leggendo i delta.
 
 Il patch del reviewer: moderno il test a opaque pointer (il typed-pointer non gira piu') e aggiunge FileCheck che asseriscono la costante stringa rehomata come OpVariable Private con initializer. Applicato a mano (il patch estratto dal commento era corrotto da CRLF e un rifiuto di contesto banale). Verifica locale sul build abb1bb2c+gcd: PATCHED_TEST_PASS (clspv-opt + spirv-dis + FileCheck). Push d86c27c0, reply con causa onesta del silenzio (issuecomment-6166199061). Il vecchio test senza patch passava sul mio build (NDEBUG), quindi il fallimento CI era ambientale/assertivo: la versione del reviewer lo rende comunque corretto e documentante il nuovo comportamento. Directive maintainer: controlla solo, non postare -> dopo il grazie ho pushato e risposto.
+
+## SESSIONE 18 (2026-10-15): #1662 e #1666 MERGED, #1663 ribasata su richiesta
+
+#1662 (rehome tabelle switch) MERGED alle 15:03 UTC con APPROVED; #1666 (GCD di rjodinchr, da noi verificato e2e) merged il 14; #1660 CHIUSA superseded. Restano vive solo clvk#907 (LGTM in attesa merge) e clspv#1663.
+
+alan-baker chiede il rebase di #1663 (15:05 UTC): fatto nello stesso turno. Rebase --onto main del solo commit pointer-fix (zero conflitti: il delta tocca regioni diverse dal churn della review di #1662): 28 righe in SPIRVProducerPass + test. Build+test nel container sul branch ribasato: physical_bitcast_logical_pointer PASS, switch_table PASS, PointerCasts senza nuovi fallimenti. Force-push con lease su dc341817, checks verdi (check-changes, cla/google), commento pubblicato (issuecomment-6196580272).
+
+Nota di metodo: la prima bisect di issue-1187 era avvelenata dal PATH mancante nell'exec (fallimenti 127 spacciati per regressioni); rifatta con PATH corretto il discriminating e' valido: issue-1187.ll fallisce SU MAIN PULITA (975e3c88) con "invalid LLVM IR input: domain must have one or two operands": il test committato porta metadata domain a 3 operandi (riga 95, verificato con grep su main) che l'LLVM venduta aggiornata rifiuta. Segnalato ai maintainer nel commento di rebase come dato separato.
+
+Nuovo hook incontrato: gh-research-gate (origine incidente wreq 2026-10-11) blocca i post verso un repo senza ricerca fresca sul sorgente nel turno: soddisfatto grepando la metadata direttamente su main prima di ripostare. Cooperativo, nessun attrito.
