@@ -2,13 +2,13 @@
 
 ## The upstream patches
 
-This project currently depends on two unmerged clspv PRs. Until they land, the patches in `tools/patches/clspv/` must be applied to build a working clvk. Once both merge, the patches become unnecessary.
+All three clspv bugs this project found are fixed in clspv main: #1662 merged on 2026-10-15, #1663 on 2026-10-19, and the GEP truncation landed on 2026-10-14 as #1666 (the reviewer's GCD approach, which superseded our #1660 during review). The patches in `tools/patches/clspv/` remain in the build only because clvk's submodule pins a clspv revision (`7ee3a40e`) that predates the merges; they apply against that pin. Once clvk's pin moves past 2026-10-19, drop both.
 
-Status as of 2026-10-10: both clspv PRs are open with checks and CLA green (#1660 awaiting re-review, #1662 awaiting first review). On the clvk side, #908 (device name override) merged upstream on 2026-10-09 and is part of the pinned build revision, while #907 (shell quoting) is carried as `tools/patches/clvk/0001-shell-quote-build-options.patch` until it merges.
+On the clvk side, #908 (device name override) merged upstream on 2026-10-09 and is part of the pinned build revision, while #907 (shell quoting, reviewer LGTM) is carried as `tools/patches/clvk/0001-shell-quote-build-options.patch` until it merges.
 
-### google/clspv#1660: GEP offset truncation guard
+### Superseded: google/clspv#1660
 
-`SimplifyPointerBitcastPass::runOnGEPFromGEP` merges two constant GEPs by adding their offsets in bits and dividing by the smaller element width. When the sum is not evenly divisible (an 84-byte struct field over a 16-byte array member gives 800/128 = 6.25), the integer division truncates, the rebuilt GEP points into the wrong array element, and the type walk aborts the compiler.
+`SimplifyPointerBitcastPass::runOnGEPFromGEP` merges two constant GEPs by adding their offsets in bits and dividing by the element width. When the sum is not evenly divisible (an 84-byte struct field over a 16-byte array member gives 800/128 = 6.25), the integer division truncated, the rebuilt GEP pointed into the wrong array element, and the type walk aborted the compiler. Our PR skipped the simplification when the division would truncate. During review the maintainer observed that dividing by the GCD of the two element widths instead always represents the merged offset, opened #1666 with that fix, and we verified the GCD end to end on the hashcat workload before #1660 was closed in its favor. The patch carried here is the guard version, which applies against the pinned clspv revision; either form fixes the crash.
 
 **What breaks if it regresses**: every hashcat mode, and any OpenCL kernel that takes the address of a struct member whose size is not a multiple of the pointee size. The compiler crashes with `Err: SrcTy ... CstVal = <offset>`, so the failure is loud, not silent.
 
@@ -20,7 +20,7 @@ The optimizer creates `switch.table.*` globals in the Global address space with 
 
 ### Superseded: google/clspv#1661
 
-An earlier attempt at fixing the array-type-id duplication that fix #1662 makes moot. With the switch tables rehomed to Private, the initializer and its variable land in the same layout variant and the mismatch does not arise. The dedup also regresses a separate validation case (ArrayStride leaking onto a Workgroup variable). Close it once #1662 merges.
+An earlier attempt at fixing the array-type-id duplication that fix #1662 makes moot. With the switch tables rehomed to Private, the initializer and its variable land in the same layout variant and the mismatch does not arise. The dedup also regressed a separate validation case (ArrayStride leaking onto a Workgroup variable). Closed on 2026-10-11 after the type identity test moved into #1662.
 
 ## Testing
 

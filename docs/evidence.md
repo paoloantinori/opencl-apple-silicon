@@ -1430,3 +1430,7 @@ Gate incidentali nel giro: deploy-gate ha fermato il push al fork (dichiarato: p
 ## SESSIONE 20 (2026-10-17): #1663, CHECK-NOT vacuo corretto
 
 rjodinchr becca che il mio CHECK-NOT non aveva denti: spirv-dis stampa i nomi typed (%_ptr_PhysicalStorageBuffer_uint), quindi il pattern con spazio+id dopo PhysicalStorageBuffer non matchava mai. La mia "verifica a due direzioni" della sessione 19 era corretta sul merito (grep a substring riproduceva il bug su main) ma il check FileCheck era vacuo. Fix f708cab7 con il suo suggestion (CHECK-NOT: OpBitcast generico). Riverificato: sul branch l'output ha ZERO OpBitcast totali (test PASS); su main pre-fix l'output di ieri contiene "OpBitcast" quindi il check allargato fallisce per costruzione. Reply 4296343308. Lezione: un CHECK-NOT va testato anche nella direzione in cui DEVE matchare (mutazione dell'output), non solo per assenza di falsi positivi.
+
+## SESSIONE 21 (2026-10-19): #1663 MERGED - bilancio finale contributi clspv
+
+google/clspv#1663 (OpBitcast invalido da puntatore logico sotto physical addressing) MERGED alle 09:46 UTC del 2026-10-19 con APPROVED. Nessuna attivita' nuova su clvk#906/#600, libkrun#910 (ancora open, slp non ha replicato alla mia risposta), hashcat#4959, podman#29918. Unica PR ancora viva: kpet/clvk#907 (LGTM, attende merge).

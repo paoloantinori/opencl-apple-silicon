@@ -42,11 +42,11 @@ What is new here is the composition and the two compiler fixes it took: the full
 
 Three bugs in clspv, all found by feeding it a hashcat kernel, all with reproducer and patch:
 
-1. **GEP offset truncation** ([google/clspv#1660](https://github.com/google/clspv/pull/1660)). `SimplifyPointerBitcastPass` merges two constant GEPs by adding their offsets in bits and dividing by the smaller element width. When a struct field is 84 bytes and the GEP element is 16 bytes, the sum is 800 bits over 128, which truncates 6.25 to 6 and moves the access into the wrong array. The fix skips the simplification when the division would truncate. Every hashcat mode hits this; the compiler aborts.
+1. **GEP offset truncation** ([google/clspv#1666](https://github.com/google/clspv/pull/1666), merged 2026-10-14). `SimplifyPointerBitcastPass` merges two constant GEPs by adding their offsets in bits and dividing by the element width. When a struct field is 84 bytes and the GEP element is 16 bytes, the sum is 800 bits over 128, which truncated 6.25 to 6 and moved the access into the wrong array. The fix divides by the GCD of the two element widths, which preserves the offset exactly. Every hashcat mode hits this; the compiler aborts. Our first fix ([#1660](https://github.com/google/clspv/pull/1660)) skipped the simplification when the division would truncate. During review the maintainer proposed the GCD approach instead, which keeps the fold and fixes the truncation, and #1660 was closed in its favor.
 
-2. **Switch lookup tables emitted as storage buffers** ([google/clspv#1662](https://github.com/google/clspv/pull/1662)). The optimizer's switch-to-lookup-table conversion creates `switch.table.*` globals in the Global address space with constant initializers. The OpenCL frontend forbids initialized program-scope variables outside the constant address space, so these are always compiler artifacts. The producer emitted them as StorageBuffer variables with their initializers attached, which violates three Vulkan rules at once (type must be a struct, initializer not allowed in that storage class, SPIR-V 1.4+ requires interface listing). The fix rehomes them to module-scope Private variables.
+2. **Switch lookup tables emitted as storage buffers** ([google/clspv#1662](https://github.com/google/clspv/pull/1662), merged 2026-10-15). The optimizer's switch-to-lookup-table conversion creates `switch.table.*` globals in the Global address space with constant initializers. The OpenCL frontend forbids initialized program-scope variables outside the constant address space, so these are always compiler artifacts. The producer emitted them as StorageBuffer variables with their initializers attached, which violates three Vulkan rules at once (type must be a struct, initializer not allowed in that storage class, SPIR-V 1.4+ requires interface listing). The fix rehomes them to module-scope Private variables.
 
-3. **Invalid logical-to-physical pointer bitcast** ([google/clspv#1663](https://github.com/google/clspv/pull/1663)). Under `-physical-storage-buffers`, the producer reconciles pointer type mismatches by emitting an `OpBitcast` whose operand is a logical pointer, which SPIR-V forbids. The fix tracks the storage class of each registered pointer type and keeps the value's own pointer when it is logical. This only surfaces once fix 2 is applied, because the rehomed tables are what carry the mismatch.
+3. **Invalid logical-to-physical pointer bitcast** ([google/clspv#1663](https://github.com/google/clspv/pull/1663), merged 2026-10-19). Under `-physical-storage-buffers`, the producer reconciles pointer type mismatches by emitting an `OpBitcast` whose operand is a logical pointer, which SPIR-V forbids. The fix resolves the pointer's address space through the rehoming-aware helper and builds the expected pointer type from the resolved space, so rehomed values keep their Private type. This only surfaces once fix 2 is applied, because the rehomed tables are what carry the mismatch.
 
 Two smaller fixes went to clvk:
 
@@ -56,18 +56,19 @@ Two smaller fixes went to clvk:
 
 ## Upstream status
 
-As of 2026-10-10:
+As of 2026-10-19, every compiler bug found by this project is fixed in clspv main:
 
 | Pull request | What it fixes | Status |
 |---|---|---|
 | [kpet/clvk#908](https://github.com/kpet/clvk/pull/908) | Device name override | **Merged** 2026-10-09 |
-| [kpet/clvk#907](https://github.com/kpet/clvk/pull/907) | Shell quoting of compiler options | Open; CI green, all review threads answered |
-| [google/clspv#1660](https://github.com/google/clspv/pull/1660) | GEP offset truncation | Open; review feedback addressed, awaiting re-review |
-| [google/clspv#1662](https://github.com/google/clspv/pull/1662) | Switch table rehome | Open; checks and CLA green, awaiting first review |
-| [google/clspv#1663](https://github.com/google/clspv/pull/1663) | Logical-to-physical pointer bitcast | Open; checks and CLA green, awaiting first review |
-| [google/clspv#1661](https://github.com/google/clspv/pull/1661) | Earlier array-type dedup attempt | Superseded by #1662; will be closed when it merges |
+| [kpet/clvk#907](https://github.com/kpet/clvk/pull/907) | Shell quoting of compiler options | Open; CI green, reviewer LGTM, awaiting merge |
+| [google/clspv#1666](https://github.com/google/clspv/pull/1666) | GEP offset truncation (GCD) | **Merged** 2026-10-14 |
+| [google/clspv#1662](https://github.com/google/clspv/pull/1662) | Switch table rehome | **Merged** 2026-10-15 |
+| [google/clspv#1663](https://github.com/google/clspv/pull/1663) | Logical-to-physical pointer bitcast | **Merged** 2026-10-19 |
+| [google/clspv#1660](https://github.com/google/clspv/pull/1660) | GEP offset truncation (skip guard) | Closed; superseded by #1666 during review |
+| [google/clspv#1661](https://github.com/google/clspv/pull/1661) | Earlier array-type dedup attempt | Closed; superseded by #1662 |
 
-The build pins clvk at `8bd3672`, which already contains #908. The still-open #907 and the measurement-only NULL-buffer shim are carried as local patches in `tools/patches/clvk/` and applied by `tools/build-clvk.sh`.
+The build pins clvk at `8bd3672`, which already contains #908. The still-open #907 and the measurement-only NULL-buffer shim are carried as local patches in `tools/patches/clvk/` and applied by `tools/build-clvk.sh`. The two clspv fixes are also carried as patches in `tools/patches/clspv/`: clspv main contains them, but the clspv revision pinned by clvk's submodule (`7ee3a40e`) predates all three merges, so the patches apply against the pin until clvk updates it. Once clvk's pin moves past 2026-10-19, both clspv patches can be dropped.
 
 ## How to reproduce
 
@@ -94,7 +95,7 @@ tools/build-clvk.sh
 
 Clones kpet/clvk, applies the clspv patches from `tools/patches/clspv/` and the clvk patches from `tools/patches/clvk/` (the open #907 and the local measurement shim), and builds. Takes about 45 minutes (LLVM is the long pole). The output is `libOpenCL.so` plus the patched `clspv` binary.
 
-Once upstream PRs #1660 and #1662 merge, the patches become unnecessary and a plain clvk build suffices.
+All three clspv fixes are in clspv main, but clvk pins a clspv revision (`7ee3a40e`) that predates them, so the two clspv patches are applied against the pin. Once clvk's submodule pin moves past 2026-10-19, both patches can be dropped and this step reduces to the clvk patches only.
 
 ### Step 3: Run the benchmark
 
